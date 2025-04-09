@@ -20,6 +20,7 @@
 #include "system/confidential-guest-support.h"
 #include "system/kvm.h"
 #include "system/runstate.h"
+#include "string.h"
 
 #define TYPE_RME_GUEST "rme-guest"
 OBJECT_DECLARE_SIMPLE_TYPE(RmeGuest, RME_GUEST)
@@ -86,6 +87,12 @@ typedef struct {
 #define REALM_PARAMS_FLAG_PMU       (1 << 2)
 
 #define REC_CREATE_FLAG_RUNNABLE    (1 << 0)
+
+#define RMI_MAX_AUX_PLANES_NUM      3
+
+#define REC_PARAMS_FLAGS1_ATC_MASK  (1 << 2)
+
+#define REC_PARAMS_FLAGS1_ATC       4
 
 static RmeGuest *rme_guest;
 
@@ -190,6 +197,7 @@ static int rme_log_realm_create(Error **errp)
 {
     int ret;
     ARMCPU *cpu;
+    size_t option;
     EventLogVmmVersion vmm_version = {
         .signature = "VM VERSION",
         .name = "QEMU",
@@ -206,9 +214,26 @@ static int rme_log_realm_create(Error **errp)
         uint8_t     num_wps;
         uint8_t     pmu_num_ctrs;
         uint8_t     hash_algo;
-    } params = {
-        .s2sz = rme_guest->ipa_bits,
-    };
+        uint64_t    num_aux_planes;
+        uint64_t    ats_plane;
+        uint64_t    flags1;
+        uint8_t     mecid;
+        uint16_t    aux_vmid[3];
+        uint64_t    aux_rtt_base[3];
+    } params；
+
+    memset(&params, 0, sizeof(params));
+
+    params.s2sz = rme_guest->ipa_bits;
+
+    /* Default PLANE feature is supported */
+    params.num_aux_planes = 1;
+    params.mecid = NULL;
+
+    for(option = 0; option < 3; option++) {
+        params.aux_vmid[option] = NULL;
+        params.aux_rtt_base[option] = NULL;
+    }
 
     if (!rme_guest->log) {
         return 0;
@@ -219,6 +244,12 @@ static int rme_log_realm_create(Error **errp)
                             NULL, 0, errp);
     if (ret) {
         return ret;
+    }
+
+    if((params.flags1 & REC_PARAMS_FLAGS1_ATC_MASK) == REC_PARAMS_FLAGS1_ATC) {
+        /* TODO: Address Translation Service is supported for devices assigned to the Realm */
+        params.ats_plane = 0;
+
     }
 
     /* With KVM all CPUs have the same capability */
