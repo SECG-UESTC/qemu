@@ -197,7 +197,6 @@ static int rme_log_realm_create(Error **errp)
 {
     int ret;
     ARMCPU *cpu;
-    size_t option;
     EventLogVmmVersion vmm_version = {
         .signature = "VM VERSION",
         .name = "QEMU",
@@ -218,8 +217,8 @@ static int rme_log_realm_create(Error **errp)
         uint64_t    ats_plane;
         uint64_t    flags1;
         uint8_t     mecid;
-        uint16_t    aux_vmid[3];
-        uint64_t    aux_rtt_base[3];
+        uint16_t    aux_vmid[RMI_MAX_AUX_PLANES_NUM];
+        uint64_t    aux_rtt_base[RMI_MAX_AUX_PLANES_NUM];
     } params；
 
     memset(&params, 0, sizeof(params));
@@ -230,9 +229,9 @@ static int rme_log_realm_create(Error **errp)
     params.num_aux_planes = 1;
     params.mecid = NULL;
 
-    for(option = 0; option < 3; option++) {
-        params.aux_vmid[option] = NULL;
-        params.aux_rtt_base[option] = NULL;
+    for(int i = 0; i < RMI_MAX_AUX_PLANES_NUM; i++) {
+        params.aux_vmid[i] = NULL;
+        params.aux_rtt_base[i] = NULL;
     }
 
     if (!rme_guest->log) {
@@ -246,11 +245,7 @@ static int rme_log_realm_create(Error **errp)
         return ret;
     }
 
-    if((params.flags1 & REC_PARAMS_FLAGS1_ATC_MASK) == REC_PARAMS_FLAGS1_ATC) {
-        /* TODO: Address Translation Service is supported for devices assigned to the Realm */
-        params.ats_plane = 0;
-
-    }
+    /* TODO: whether Address Translation Service is supported for devices assigned to the Realm */
 
     /* With KVM all CPUs have the same capability */
     cpu = ARM_CPU(first_cpu);
