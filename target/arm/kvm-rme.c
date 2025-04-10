@@ -20,7 +20,6 @@
 #include "system/confidential-guest-support.h"
 #include "system/kvm.h"
 #include "system/runstate.h"
-#include "string.h"
 
 #define TYPE_RME_GUEST "rme-guest"
 OBJECT_DECLARE_SIMPLE_TYPE(RmeGuest, RME_GUEST)
