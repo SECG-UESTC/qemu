@@ -50,6 +50,8 @@ struct RmeGuest {
     uint8_t personalization_value[KVM_CAP_ARM_RME_RPV_SIZE];
     RmeGuestMeasurementAlgorithm measurement_algo;
     bool use_measurement_log;
+    char *num_aux_planes_str;
+    uint32_t num_aux_planes;
 
     size_t num_cpus;
     uint8_t ipa_bits;
@@ -204,10 +206,12 @@ static int rme_log_realm_create(Error **errp)
         uint8_t     sve_vl;
         uint8_t     num_bps;
         uint8_t     num_wps;
+        uint8_t     num_aux_planes;
         uint8_t     pmu_num_ctrs;
         uint8_t     hash_algo;
     } params = {
         .s2sz = rme_guest->ipa_bits,
+        .num_aux_planes = rme_guest->num_aux_planes,
     };
 
     if (!rme_guest->log) {
@@ -399,6 +403,10 @@ static int rme_configure_one(RmeGuest *guest, uint32_t cfg, Error **errp)
         }
         cfg_str = "hash algorithm";
         break;
+    case KVM_CAP_ARM_RME_CFG_NUM_AUX_PLANES:
+        args.num_aux_planes = guest->num_aux_planes;
+        cfg_str = "number of auxiliary planes";
+        break;
     default:
         g_assert_not_reached();
     }
@@ -418,6 +426,7 @@ static int rme_configure(Error **errp)
     const uint32_t config_options[] = {
         KVM_CAP_ARM_RME_CFG_RPV,
         KVM_CAP_ARM_RME_CFG_HASH_ALGO,
+        KVM_CAP_ARM_RME_CFG_NUM_AUX_PLANES,
     };
 
     for (option = 0; option < ARRAY_SIZE(config_options); option++) {
@@ -645,6 +654,30 @@ static void rme_set_measurement_log(Object *obj, bool value, Error **errp)
     guest->use_measurement_log = value;
 }
 
+static char *rme_get_num_aux_planes(Object *obj, Error **errp)
+{
+    RmeGuest *guest = RME_GUEST(obj);
+
+    return g_strdup(guest->num_aux_planes_str);
+}
+
+static void rme_set_num_aux_planes(Object *obj, const char *value, Error **errp)
+{
+    RmeGuest *guest = RME_GUEST(obj);
+    uint32_t num_planes;
+
+    num_planes = strtoul(value, NULL, 0);
+
+    if (num_planes < 1 || num_planes > 3) {
+        error_setg(errp, "number of auxiliary planes must be between 1 and 3");
+        return;
+    }
+    guest->num_aux_planes = num_planes;
+
+    g_free(guest->num_aux_planes_str);
+    guest->num_aux_planes_str = g_strdup(value);
+}
+
 static void rme_guest_class_init(ObjectClass *oc, void *data)
 {
     object_class_property_add_str(oc, "personalization-value", rme_get_rpv,
@@ -665,6 +698,12 @@ static void rme_guest_class_init(ObjectClass *oc, void *data)
                                    rme_set_measurement_log);
     object_class_property_set_description(oc, "measurement-log",
             "Enable/disable Realm measurement log");
+
+    object_class_property_add_str(oc, "num-aux-planes",
+                                  rme_get_num_aux_planes,
+                                  rme_set_num_aux_planes);
+    object_class_property_set_description(oc, "num-aux-planes",
+            "Number of auxiliary planes (1-3)");
 }
 
 static void rme_guest_init(Object *obj)
